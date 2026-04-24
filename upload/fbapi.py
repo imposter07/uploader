@@ -150,7 +150,8 @@ class FbApi(object):
             Campaign.Field.objective: objective,
             Campaign.Field.status: status,
             Campaign.Field.spend_cap: int(spend_cap),
-            Campaign.Field.special_ad_categories: 'NONE'
+            Campaign.Field.special_ad_categories: 'NONE',
+            Campaign.Field.is_adset_budget_sharing_enabled: False,
         })
         self.campaign.remote_create()
 
