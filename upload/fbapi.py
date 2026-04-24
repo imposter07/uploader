@@ -189,8 +189,12 @@ class FbApi(object):
 
     @staticmethod
     def get_matching_saved_audiences(audiences):
+        if isinstance(audiences, (str, bytes)):
+            audiences = [audiences]
         aud_list = []
         for audience in audiences:
+            if not audience:
+                continue
             audience = CustomAudience(audience)
             val_aud = audience.remote_read(fields=['targeting'])
             aud_list.append(val_aud)
@@ -213,6 +217,12 @@ class FbApi(object):
         :return: The updated targeting dictionary
         """
         audience_id = target[1]
+        if isinstance(audience_id, (list, tuple)):
+            has_value = any(x for x in audience_id)
+        else:
+            has_value = bool(audience_id)
+        if not has_value:
+            return targeting
         search_order = (self.custom_audience, self.saved_audience)
         if target[0] == self.saved_audience:
             search_order = search_order[::-1]
