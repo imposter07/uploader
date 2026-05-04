@@ -222,6 +222,11 @@ class FbApi(object):
         else:
             has_value = bool(audience_id)
         if not has_value:
+            logging.warning(
+                'Target type {!r} has no audience id (raw value: '
+                '{!r}); skipping audience lookup. Fix the '
+                'adset_target column if an audience was '
+                'intended.'.format(target[0], audience_id))
             return targeting
         search_order = (self.custom_audience, self.saved_audience)
         if target[0] == self.saved_audience:
@@ -406,7 +411,16 @@ class FbApi(object):
                 }
             else:
                 params[AdSet.Field.optimization_goal] = opt_goal
-                params[AdSet.Field.promoted_object] = {'page_id': prom_obj}
+                if prom_obj:
+                    params[AdSet.Field.promoted_object] = {
+                        'page_id': prom_obj}
+                else:
+                    logging.warning(
+                        'Adset {!r} has no page_id '
+                        '(adset_page_id is blank); skipping '
+                        'promoted_object. Set adset_page_id to '
+                        'the Facebook page id if needed.'.format(
+                            adset_name))
             if not bud_val:
                 msg = 'Budget value missing, did not upload'.format(params)
                 logging.warning(msg)

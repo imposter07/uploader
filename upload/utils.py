@@ -169,7 +169,7 @@ def read_excel(file_name, kwargs=None):
         try:
             df = pd.read_excel(file_name, **kwargs)
             break
-        except (zipfile.BadZipFile, ValueError) as e:
+        except (zipfile.BadZipFile, ValueError, EOFError) as e:
             logging.warning(e)
             time.sleep(1)
     return df

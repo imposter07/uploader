@@ -230,7 +230,7 @@ class Creator(object):
         utl.write_df(df, self.new_file)
 
     def apply_relations(self):
-        cdf = pd.read_excel(self.new_file)
+        cdf = utl.read_excel(self.new_file)
         skip_cols = ['name']
         if self.campaign:
             skip_cols.append(self.campaign.split('::')[0])
@@ -287,6 +287,8 @@ class Creator(object):
                 else:
                     if col not in df.columns:
                         col = col.replace("’", "")
+                        if col not in df.columns:
+                            df[col] = ''
                     new_series = (
                         df[col].astype('U').str.split('_') .str[int(pos)])
                 if idx == 0:
