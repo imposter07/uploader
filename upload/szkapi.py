@@ -1,3 +1,13 @@
+"""Sizmek channel — parked scaffolding, not a working uploader.
+
+Config load + class shape only: there is no functional upload path
+(``CampaignUpload.upload_all_campaigns`` returns nothing and calls a
+``create_campaign`` that ``SzkApi`` doesn't define) and the login flow
+is never invoked. Intentionally retained in case the Sizmek channel is
+built out later — do not delete as dead code. ``'szk'`` stays in the
+``uploader/main.py`` ``--api`` dispatch choices for the same reason.
+Bring it to FB/AW parity before relying on it.
+"""
 import os
 import sys
 import time

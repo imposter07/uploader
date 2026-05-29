@@ -593,6 +593,36 @@ class PlacementUpload(object):
                                                      placement.name))
             results.append(self.upload_placement(api, placement))
         logging.info('Pausing for 30s while campaigns finish uploading.')
+        self.attach_placement_tags(api, results)
+        return results
+
+    @staticmethod
+    def attach_placement_tags(api, results):
+        """Enrich each placement result with its DCM click tag.
+
+        Tags are the artifact trafficking teams copy into other
+        systems, so surface them on the run. Tags are fetched per
+        campaign (the API filters by campaignId); a fetch failure is
+        logged and skipped — tags are an enrichment, never block the
+        run results.
+        """
+        campaign_ids = {r.get('parent_platform_id') for r in results
+                        if r.get('parent_platform_id')}
+        tags_by_placement = {}
+        for campaign_id in campaign_ids:
+            try:
+                tag_dict = PlacementUpload.generate_dcm_tags(api, campaign_id)
+            except Exception as e:
+                logging.warning(
+                    'Could not fetch DCM tags for campaign {}: {}'.format(
+                        campaign_id, e))
+                continue
+            for placement_id, data in tag_dict.items():
+                tags_by_placement[str(placement_id)] = data.get('clickTag')
+        for r in results:
+            tag = tags_by_placement.get(str(r.get('platform_id')))
+            if tag:
+                r['tag'] = tag
         return results
 
     @staticmethod

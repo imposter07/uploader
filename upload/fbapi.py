@@ -212,12 +212,25 @@ class FbApi(object):
             aud_list = aud_list[0]['targeting']
         return aud_list
 
-    def get_matching_custom_audiences(self, audiences):
+    def get_account_custom_audiences(self):
+        """Every custom audience on the account as ``[{'id','name'}]``.
+        The list-all the matching helper already relies on, exposed so
+        the app layer can offer an audience picker instead of free-text
+        IDs."""
         act_auds = self.account.get_custom_audiences(
                    fields=[CustomAudience.Field.name, CustomAudience.Field.id])
-        audiences = [{'id': x['id'], 'name': x['name']} for x in act_auds
-                     if x['id'] in audiences]
-        return audiences
+        return [{'id': x['id'], 'name': x['name']} for x in act_auds]
+
+    def get_account_pixels(self):
+        """Every ads pixel on the account as ``[{'id','name'}]``
+        (name falls back to the id when the pixel is unnamed)."""
+        pixels = self.account.get_ads_pixels(fields=['id', 'name'])
+        return [{'id': x['id'], 'name': x.get('name') or x['id']}
+                for x in pixels]
+
+    def get_matching_custom_audiences(self, audiences):
+        return [a for a in self.get_account_custom_audiences()
+                if a['id'] in audiences]
 
     def get_matching_audience(self, target, targeting):
         """
