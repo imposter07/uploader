@@ -17,6 +17,7 @@ from facebook_business.adobjects.advideo import AdVideo
 from facebook_business.adobjects.campaign import Campaign
 from facebook_business.adobjects.adaccount import AdAccount
 from facebook_business.adobjects.targeting import Targeting
+from facebook_business.adobjects.user import User
 from facebook_business.adobjects.adcreative import AdCreative
 from facebook_business.exceptions import FacebookRequestError
 from facebook_business.adobjects.customaudience import CustomAudience
@@ -26,7 +27,6 @@ from facebook_business.adobjects.adcreativeobjectstoryspec \
     import AdCreativeObjectStorySpec
 from facebook_business.adobjects.adcreativevideodata \
     import AdCreativeVideoData
-
 
 fb_path = 'fb'
 config_path = os.path.join(utl.config_file_path, fb_path)
@@ -156,7 +156,7 @@ class FbApi(object):
         existing = [x for x in self.cam_dict if x['name'] == campaign_name]
         if existing:
             logging.warning(campaign_name + ' already in account.  This ' +
-                                            'campaign was not uploaded.')
+                            'campaign was not uploaded.')
             return {'status': 'skipped_exists',
                     'platform_id': existing[0].get('id'),
                     'error_code': None, 'error_message': None}
@@ -231,7 +231,7 @@ class FbApi(object):
         the app layer can offer an audience picker instead of free-text
         IDs."""
         act_auds = self.account.get_custom_audiences(
-                   fields=[CustomAudience.Field.name, CustomAudience.Field.id])
+            fields=[CustomAudience.Field.name, CustomAudience.Field.id])
         return [{'id': x['id'], 'name': x['name']} for x in act_auds]
 
     def get_account_pixels(self):
@@ -245,6 +245,15 @@ class FbApi(object):
         """Pages the account can promote as ``[{'id','name'}]`` so the
         app layer can offer a page picker for adset/ad page ids."""
         pages = self.account.get_promote_pages(fields=['id', 'name'])
+        return [{'id': x['id'], 'name': x.get('name') or x['id']}
+                for x in pages]
+
+    def get_user_pages(self):
+        """Every Page the token can access (``me/accounts``) as
+        ``[{'id','name'}]`` — page ids aren't ad-account-scoped, so the
+        picker offers the full set, not just the account's promote-pages.
+        """
+        pages = User(fbid='me').get_accounts(fields=['id', 'name'])
         return [{'id': x['id'], 'name': x.get('name') or x['id']}
                 for x in pages]
 
@@ -453,7 +462,7 @@ class FbApi(object):
                     self.pixel = pixel[0]['id']
                 params[AdSet.Field.promoted_object] = {'pixel_id': self.pixel,
                                                        'custom_event_type':
-                                                       opt_goal,
+                                                           opt_goal,
                                                        'page_id': prom_obj}
             elif opt_goal == 'APP_INSTALLS':
                 opt_goal = opt_goal.split('|')
@@ -614,8 +623,8 @@ class FbApi(object):
                     'status': 'failed', 'platform_id': None,
                     'parent_platform_id': asid[0],
                     'error_code': (
-                        str(last_err.api_error_code() or '')
-                        if last_err else None) or None,
+                                      str(last_err.api_error_code() or '')
+                                      if last_err else None) or None,
                     'error_message': (
                         last_err.api_error_message()
                         if last_err else 'Unknown error from Facebook')})
@@ -970,7 +979,7 @@ class AdSetUpload(object):
                                         ' was incorrectly formatted for ' +
                                         ' target: ' +
                                         str(self.config[k][item]))
-    
+
     def age_check(self, df):
         for col in [self.age_min, self.age_max]:
             df.loc[df[col] < 13, col] = 13
@@ -1212,12 +1221,12 @@ class AdUpload(object):
         cids = api.campaign_to_id(self.ad_cam_name)
         asids = api.adset_to_id(self.ad_adset_name, cids)
         if not cids:
-            msg = '{} does not exist in the account. {} was not uploaded.'\
+            msg = '{} does not exist in the account. {} was not uploaded.' \
                 .format(self.ad_cam_name, self.ad_name)
             logging.warning(msg)
             return self._ad_skip_result(msg)
         if not asids:
-            msg = '{} does not exist in the account. {} was not uploaded.'\
+            msg = '{} does not exist in the account. {} was not uploaded.' \
                 .format(self.ad_adset_name, self.ad_name)
             logging.warning(msg)
             return self._ad_skip_result(msg)
@@ -1264,6 +1273,7 @@ class Creative(object):
     existing ``creative_hashes.csv`` files stay valid, while AW / DCM /
     Reddit use the shared base.
     """
+
     def __init__(self, creative_file=None, creative_path='creative/'):
         self.creative_path = creative_path
         self.creative_file = creative_file
