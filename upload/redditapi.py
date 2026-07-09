@@ -122,9 +122,15 @@ def _extract_error(body):
     return {}
 
 
+_GENERIC_ERROR_MESSAGES = ('', 'bad request', 'unknown error',
+                           'unknown error from reddit ads')
+
+
 def _populate_reddit_result(result, response):
     """Fill ``result`` from a Reddit Ads create response. Success:
-    ``{"data": {"id": ...}}``. Failure: ``{"error": {...}}``."""
+    ``{"data": {"id": ...}}``. Failure: ``{"error": {...}}``; generic
+    messages ('Bad Request') get the raw body appended — the
+    actionable reason often lives outside error.message."""
     try:
         body = response.json() if response is not None else {}
     except (ValueError, AttributeError):
@@ -139,8 +145,19 @@ def _populate_reddit_result(result, response):
     err = _extract_error(body)
     result['status'] = 'failed'
     result['error_code'] = str(err.get('code', '')) or None
-    result['error_message'] = (
-        err.get('message') or 'Unknown error from Reddit Ads')
+    message = str(err.get('message') or err.get('detail') or '').strip()
+    http_status = getattr(response, 'status_code', '') or ''
+    if message.lower() in _GENERIC_ERROR_MESSAGES:
+        try:
+            raw = json.dumps(body)[:500]
+        except (TypeError, ValueError):
+            raw = ''
+        if raw and raw != '{}':
+            message = '{} (HTTP {}): {}'.format(
+                message or 'Reddit Ads error', http_status, raw)
+    result['error_message'] = message or 'Unknown error from Reddit Ads'
+    logging.warning('Reddit create failed (HTTP %s): %s',
+                    http_status, result['error_message'])
 
 
 class RedditApi(object):

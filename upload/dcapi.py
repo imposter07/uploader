@@ -14,6 +14,10 @@ config_path = os.path.join(utl.config_file_path, dcm_path)
 
 base_url = 'https://www.googleapis.com/dfareporting'
 
+# Tracking ads need no creative — used for 1x1 placements whose tags
+# are trafficked into other platforms (FB/AW/Reddit).
+TRACKING_AD_TYPE = 'AD_SERVING_TRACKING'
+
 # Extension -> creativeAssets assetIdentifier type. Images cover the
 # standard display path; anything else best-efforts to HTML.
 _ASSET_TYPE_BY_EXT = {
@@ -231,7 +235,9 @@ class DcApi(object):
 
     def get_place_id_dict(self, campaign_id):
         parent = {'campaignId': 'campaignId'}
-        fields = {'id': 'id', 'name': 'name'}
+        # size/tagFormats let the ad level detect tracking placements.
+        fields = {'id': 'id', 'name': 'name', 'size': 'size',
+                  'tagFormats': 'tagFormats'}
         request_filter = {'campaignIds': campaign_id}
         place_dict = self.get_id_dict(entity='placements', parent=parent,
                                       fields=fields, resp_entity='placements',
@@ -325,6 +331,19 @@ class DcApi(object):
             time.sleep(30)
             self.r = self.make_request(url, method, params, body)
         return self.r
+
+    def get_account_id(self):
+        """The CM360 account/network id for the configured user profile,
+        resolved from the userprofiles resource (``None`` on failure).
+        Used to build modern trafficking deep-links, which key on the
+        network account rather than the advertiser."""
+        try:
+            r = self.make_request(self.create_url(), method='get')
+            body = r.json() if r is not None else {}
+            return (body or {}).get('accountId') if isinstance(
+                body, dict) else None
+        except Exception:
+            return None
 
     def probe_account(self):
         """(ok, message) — verify the user profile is reachable, for
@@ -1061,6 +1080,14 @@ class AdUpload(object):
                 ad.creativeId = cu.get_id(str(ad.creative))
                 if ad.creativeId:
                     ad.upload_dict = ad.create_ad_dict()
+            if (not ad.creativeId and not ad.is_tracking()
+                    and ad.campaignId and ad.placementIds
+                    and ad.placements_all_tracking(api)):
+                logging.info(
+                    'Creative %r not found and all placements are '
+                    '1x1/tracking - creating %r as tracking ad.',
+                    ad.creative, ad.name)
+                ad.convert_to_tracking()
             logging.info(
                 f'Uploading ad {idx + 1} of {total}. Ad Name: {ad.name}')
             results.append(self.upload_ad(api, ad))
@@ -1084,15 +1111,17 @@ class AdUpload(object):
             result['error_message'] = (
                 f'Campaign {ad.campaign!r} not found in account')
             return result
-        if not ad.creativeId:
-            result['status'] = 'skipped_dep_missing'
-            result['error_message'] = (
-                f'Creative {ad.creative!r} not found in advertiser')
-            return result
         if not ad.placementIds:
             result['status'] = 'skipped_dep_missing'
             result['error_message'] = (
                 f'No placements resolved for {ad.name!r}')
+            return result
+        if not ad.creativeId and not ad.is_tracking():
+            result['status'] = 'skipped_dep_missing'
+            result['error_message'] = (
+                f'Creative {ad.creative!r} not found in advertiser '
+                f'and placements are not 1x1/tracking, so no tracking '
+                f'ad was auto-created')
             return result
         if ad.check_exists(api):
             existing = api.get_id(api.ad_dict, ad.name)
@@ -1102,6 +1131,10 @@ class AdUpload(object):
             return result
         _populate_dcm_result(
             result, api.create_entity(ad, entity_name='ads'))
+        if (result['status'] == 'created' and ad.is_tracking()
+                and not ad.creativeId):
+            result['error_message'] = (
+                'Created as tracking ad (no creative needed)')
         return result
 
 
@@ -1174,8 +1207,40 @@ class Ad(object):
             if cre:
                 self.creativeId = cre[0]
 
+    def is_tracking(self):
+        return str(self.type) == TRACKING_AD_TYPE
+
+    @staticmethod
+    def _placement_is_tracking(place):
+        """A placement record is tracking-eligible when it is 1x1 or
+        every tagFormat is a tracking format. Missing both signals
+        (stale place_dict from an old fetch) -> not eligible."""
+        size = place.get('size') or {}
+        try:
+            if (int(size.get('width', 0)) == 1
+                    and int(size.get('height', 0)) == 1):
+                return True
+        except (TypeError, ValueError):
+            pass
+        tag_formats = place.get('tagFormats') or []
+        return bool(tag_formats) and all(
+            str(f).startswith('PLACEMENT_TAG_TRACKING')
+            for f in tag_formats)
+
+    def placements_all_tracking(self, api):
+        if not self.placementIds:
+            return False
+        return all(self._placement_is_tracking(
+            api.place_dict.get(pid) or {}) for pid in self.placementIds)
+
+    def convert_to_tracking(self):
+        self.type = TRACKING_AD_TYPE
+        self.upload_dict = self.create_ad_dict()
+
     def create_ad_dict(self):
-        if not (self.campaignId and self.creativeId and self.placementIds):
+        if not (self.campaignId and self.placementIds):
+            return {}
+        if not self.creativeId and not self.is_tracking():
             return {}
         ad_dict = {
             'name': str(self.name),
@@ -1185,14 +1250,15 @@ class Ad(object):
             'placementAssignments': [
                 {'placementId': int(pid), 'active': True}
                 for pid in self.placementIds],
-            'creativeRotation': {
+        }
+        if self.creativeId:
+            ad_dict['creativeRotation'] = {
                 'creativeAssignments': [{
                     'creativeId': int(self.creativeId),
                     'active': True,
                     'clickThroughUrl': {'defaultLandingPage': True},
                 }],
-            },
-        }
+            }
         if self.startTime:
             ad_dict['startTime'] = str(self.startTime)
         if self.endTime:
