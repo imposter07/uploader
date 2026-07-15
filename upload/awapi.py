@@ -510,6 +510,7 @@ class CampaignUpload(object):
     language = 'language'
     location = 'location'
     platform = 'platform'
+    snapshot_cols = [status, sd, ed, budget, method]
 
     def __init__(self, config_file=None):
         self.config_file = config_file
@@ -548,7 +549,10 @@ class CampaignUpload(object):
         for idx, c_id in enumerate(self.config):
             logging.info('Uploading campaign {} of {}.  '
                          'Campaign Name: {}'.format(idx + 1, total_camp, c_id))
-            results.append(self.upload_campaign(api, c_id))
+            result = self.upload_campaign(api, c_id)
+            result['pushed_values'] = utl.snapshot_values(
+                self.config[c_id], self.snapshot_cols)
+            results.append(result)
         logging.info('Campaigns finished uploading.')
         return results
 
@@ -724,6 +728,7 @@ class AdGroupUpload(object):
     placement = 'placement'
     affinity = 'affinity'
     in_market = 'in_market'
+    snapshot_cols = [status, bid_type, bid_val]
 
     def __init__(self, config_file=None):
         self.config_file = config_file
@@ -759,7 +764,10 @@ class AdGroupUpload(object):
         results = []
         for idx, ag_id in enumerate(self.config):
             logging.info('Uploading adgroup {} of {}.'.format(idx + 1, tot_ag))
-            results.append(self.upload_adgroup(api, ag_id))
+            result = self.upload_adgroup(api, ag_id)
+            result['pushed_values'] = utl.snapshot_values(
+                self.config[ag_id], self.snapshot_cols)
+            results.append(result)
         logging.info('{} adgroups uploaded.'.format(tot_ag))
         return results
 
@@ -1038,6 +1046,8 @@ class AdUpload(object):
     display_url = 'displayUrl'
     marketing_image = 'marketingImage'
     image = 'image'
+    snapshot_cols = [type, headline1, headline2, headline3, description,
+                     description2, final_url, display_url]
 
     def __init__(self, config_file=None):
         self.config_file = config_file
@@ -1092,7 +1102,10 @@ class AdUpload(object):
         for idx, ad_id in enumerate(self.config):
             logging.info('Uploading ad {} of {}.  '
                          'Ad Row: {}'.format(idx + 1, total_ad, ad_id + 2))
-            results.append(self.upload_ad(api, ad_id, cu))
+            result = self.upload_ad(api, ad_id, cu)
+            result['pushed_values'] = utl.snapshot_values(
+                self.config[ad_id], self.snapshot_cols)
+            results.append(result)
         logging.info('{} ads uploaded.'.format(total_ad))
         return results
 

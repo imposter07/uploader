@@ -886,10 +886,12 @@ class CampaignUpload(object):
     spend_cap = 'campaign_spend_cap'
     status = 'campaign_status'
     special_ad_cateogry = 'special_ad_category'
+    snapshot_cols = [objective, spend_cap, status]
 
     def __init__(self, config_file=None):
         self.config_file = config_file
         self.config = None
+        self.raw_rows = {}
         self.cam_objective = None
         self.cam_status = None
         self.cam_spend_cap = None
@@ -900,6 +902,10 @@ class CampaignUpload(object):
         config_file = os.path.join(config_path, config_file)
         df = pd.read_excel(config_file)
         df = df.dropna(subset=[self.name])
+        self.raw_rows = {
+            k: utl.snapshot_values(v, self.snapshot_cols)
+            for k, v in df.set_index(self.name).to_dict(
+                orient='index').items()}
         for col in [self.spend_cap]:
             df[col] = df[col] * 100
         self.config = df.set_index(self.name).to_dict(orient='index')
@@ -945,6 +951,7 @@ class CampaignUpload(object):
             'status': outcome.get('status') or 'failed',
             'error_code': outcome.get('error_code'),
             'error_message': outcome.get('error_message'),
+            'pushed_values': self.raw_rows.get(campaign),
         }
 
 
@@ -969,10 +976,14 @@ class AdSetUpload(object):
     status = 'adset_status'
     bill_evt = 'adset_billing_event'
     prom_page = 'adset_page_id'
+    snapshot_cols = [budget_type, budget_value, goal, bid, start_time,
+                     end_time, status, bill_evt]
 
     def __init__(self, config_file=None):
         self.config_file = config_file
         self.config = None
+        self.raw_rows = {}
+        self.as_key = None
         self.as_name = None
         self.as_cam_name = None
         self.as_target = None
@@ -999,6 +1010,12 @@ class AdSetUpload(object):
         config_file = os.path.join(config_path, config_file)
         df = pd.read_excel(config_file)
         df = df.dropna(subset=[self.name])
+        raw = df.copy()
+        raw[self.key] = raw[self.cam_name] + raw[self.name]
+        self.raw_rows = {
+            k: utl.snapshot_values(v, self.snapshot_cols)
+            for k, v in raw.set_index(self.key).to_dict(
+                orient='index').items()}
         df[self.prom_page] = df[self.prom_page].astype('U').str.strip('_')
         df[self.genders] = df[self.genders].map({'M': [1], 'F': [2]})
         df = self.age_check(df)
@@ -1034,6 +1051,7 @@ class AdSetUpload(object):
         return df
 
     def set_adset(self, adset):
+        self.as_key = adset
         self.as_name = self.config[adset][self.name]
         self.as_cam_name = self.config[adset][self.cam_name]
         self.as_target = self.config[adset][self.target]
@@ -1082,6 +1100,7 @@ class AdSetUpload(object):
                 'status': 'skipped_dep_missing',
                 'error_code': None,
                 'error_message': msg,
+                'pushed_values': self.raw_rows.get(self.as_key),
             }]
         outcomes = api.create_adset(
             self.as_name, cids, self.as_goal, self.as_budget_type,
@@ -1099,6 +1118,7 @@ class AdSetUpload(object):
             'status': o.get('status') or 'failed',
             'error_code': o.get('error_code'),
             'error_message': o.get('error_message'),
+            'pushed_values': self.raw_rows.get(self.as_key),
         } for o in outcomes]
 
 
@@ -1118,9 +1138,11 @@ class AdUpload(object):
     cta = 'call_to_action'
     view_tag = 'view_tag'
     status = 'ad_status'
+    snapshot_cols = [status, title, body, desc, cta, link, d_link]
 
     def __init__(self, config_file=None):
         self.config_file = config_file
+        self.raw_rows = {}
         self.ad_key = None
         self.ad_name = None
         self.ad_cam_name = None
@@ -1144,6 +1166,13 @@ class AdUpload(object):
         config_file = os.path.join(config_path, config_file)
         df = pd.read_excel(config_file)
         df = df.dropna(subset=[self.name])
+        raw = df.copy()
+        raw[self.key] = (raw[self.cam_name] + raw[self.adset_name] +
+                         raw[self.name])
+        self.raw_rows = {
+            k: utl.snapshot_values(v, self.snapshot_cols)
+            for k, v in raw.set_index(self.key).to_dict(
+                orient='index').items()}
         for col in [self.prom_page, self.ig_id]:
             df[col] = df[col].astype(str)
             df[col] = df[col].str.strip('_')
@@ -1165,6 +1194,7 @@ class AdUpload(object):
                                                  self.config[k][self.filename]]
 
     def set_ad(self, ad):
+        self.ad_key = ad
         self.ad_name = self.config[ad][self.name]
         self.ad_cam_name = self.config[ad][self.cam_name]
         self.ad_adset_name = self.config[ad][self.adset_name]
@@ -1258,6 +1288,7 @@ class AdUpload(object):
             'status': 'skipped_dep_missing',
             'error_code': None,
             'error_message': message,
+            'pushed_values': self.raw_rows.get(self.ad_key),
         }]
 
     def format_ad(self, api):
@@ -1306,6 +1337,7 @@ class AdUpload(object):
             'status': o.get('status') or 'failed',
             'error_code': o.get('error_code'),
             'error_message': o.get('error_message'),
+            'pushed_values': self.raw_rows.get(self.ad_key),
         } for o in outcomes]
 
 

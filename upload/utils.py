@@ -17,6 +17,44 @@ def dir_check(directory):
         os.makedirs(directory)
 
 
+def _json_safe(val):
+    """Coerce a single config value to a JSON-serializable scalar."""
+    try:
+        if val is None or pd.isna(val):
+            return None
+    except (TypeError, ValueError):
+        pass
+    if hasattr(val, 'item') and not isinstance(val, str):
+        try:
+            val = val.item()
+        except (AttributeError, ValueError):
+            pass
+    if isinstance(val, (str, bool, int, float)):
+        return val
+    return str(val)
+
+
+def snapshot_values(row, columns):
+    """JSON-safe dict of ``columns`` pulled from an upload config row.
+
+    Attached to each result row as ``pushed_values`` so the app can
+    persist what was actually sent per object and later diff config
+    edits against it. Values are kept in row (spreadsheet) space —
+    pre platform transforms like cent/micro scaling — so they compare
+    directly against regenerated upload files.
+    """
+    snap = {}
+    for col in columns:
+        if col not in row:
+            continue
+        val = row[col]
+        if isinstance(val, (list, tuple)):
+            snap[col] = [_json_safe(v) for v in val]
+        else:
+            snap[col] = _json_safe(val)
+    return snap
+
+
 class UploaderAuthError(Exception):
     """Channel credential/refresh failure — fatal, message secret-free."""
 

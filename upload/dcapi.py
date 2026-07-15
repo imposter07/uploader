@@ -485,6 +485,7 @@ class CampaignUpload(object):
     defaultLandingPage = 'defaultLandingPage'
     sd = 'startDate'
     ed = 'endDate'
+    snapshot_cols = [advertiserId, defaultLandingPage, sd, ed]
 
     def __init__(self, config_file=None):
         self.config_file = config_file
@@ -517,7 +518,10 @@ class CampaignUpload(object):
         for idx, c_id in enumerate(self.config):
             logging.info('Uploading campaign {} of {}.  '
                          'Campaign Name: {}'.format(idx + 1, total_camp, c_id))
-            results.append(self.upload_campaign(api, c_id))
+            result = self.upload_campaign(api, c_id)
+            result['pushed_values'] = utl.snapshot_values(
+                self.config[c_id], self.snapshot_cols)
+            results.append(result)
         logging.info('Pausing for 30s while campaigns finish uploading.')
         return results
 
@@ -691,6 +695,7 @@ class PlacementUpload(object):
     pricingType = 'pricingType'
     width = 'width'
     height = 'height'
+    snapshot_cols = [site, startDate, endDate, pricingType, compatibility]
 
     def __init__(self, config_file=None):
         self.config_file = config_file
@@ -738,7 +743,10 @@ class PlacementUpload(object):
             logging.info('Uploading placement {} of {}.  '
                          'Placement Name: {}'.format(idx + 1, total_placements,
                                                      placement.name))
-            results.append(self.upload_placement(api, placement))
+            result = self.upload_placement(api, placement)
+            result['pushed_values'] = utl.snapshot_values(
+                self.config[p_id], self.snapshot_cols)
+            results.append(result)
         logging.info('Pausing for 30s while campaigns finish uploading.')
         self.attach_placement_tags(api, results)
         return results
@@ -1010,6 +1018,7 @@ class AdUpload(object):
     creativeRotation = 'creativeRotation'
     deliverySchedule = 'deliverySchedule'
     placementAssignments = 'placementAssignments'
+    snapshot_cols = [active, type, startTime, endTime, creative]
 
     def __init__(self, config_file=None):
         self.config_file = config_file
@@ -1090,7 +1099,10 @@ class AdUpload(object):
                 ad.convert_to_tracking()
             logging.info(
                 f'Uploading ad {idx + 1} of {total}. Ad Name: {ad.name}')
-            results.append(self.upload_ad(api, ad))
+            result = self.upload_ad(api, ad)
+            result['pushed_values'] = utl.snapshot_values(
+                self.config[a_id], self.snapshot_cols)
+            results.append(result)
         return results
 
     @staticmethod

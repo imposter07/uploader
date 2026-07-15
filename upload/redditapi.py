@@ -642,6 +642,7 @@ class CampaignUpload(object):
     status = 'configured_status'
     funding_instrument_id = 'funding_instrument_id'
     spend_cap = 'spend_cap'
+    snapshot_cols = [objective, status, funding_instrument_id, spend_cap]
 
     def __init__(self, config_file=None):
         self.config_file = config_file
@@ -671,7 +672,10 @@ class CampaignUpload(object):
             logging.info(
                 f'Uploading Reddit campaign {idx + 1} of {total}: '
                 f'{cam.name}')
-            results.append(self.upload_campaign(api, cam))
+            result = self.upload_campaign(api, cam)
+            result['pushed_values'] = utl.snapshot_values(
+                self.config[c_id], self.snapshot_cols)
+            results.append(result)
         return results
 
     @staticmethod
@@ -772,6 +776,9 @@ class AdGroupUpload(object):
     devices = 'devices'
     platforms = 'platforms'
     gender = 'gender'
+    snapshot_cols = [configured_status, bid_strategy, bid_type, bid_value,
+                     goal_type, goal_value, optimization_goal,
+                     conversion_pixel_id, start_time, end_time]
 
     def __init__(self, config_file=None):
         self.config_file = config_file
@@ -801,7 +808,10 @@ class AdGroupUpload(object):
             logging.info(
                 f'Uploading Reddit adgroup {idx + 1} of {total}: '
                 f'{ag.name}')
-            results.append(self.upload_adgroup(api, ag))
+            result = self.upload_adgroup(api, ag)
+            result['pushed_values'] = utl.snapshot_values(
+                self.config[ag_id], self.snapshot_cols)
+            results.append(result)
         return results
 
     @staticmethod
@@ -959,6 +969,8 @@ class AdUpload(object):
     destination_url = 'destination_url'
     thumbnail = 'thumbnail'
     post_type = 'post_type'
+    snapshot_cols = [configured_status, headline, call_to_action,
+                     destination_url]
 
     def __init__(self, config_file=None):
         self.config_file = config_file
@@ -988,7 +1000,10 @@ class AdUpload(object):
             ad = Ad(self.config[a_id], api=api)
             logging.info(
                 f'Uploading Reddit ad {idx + 1} of {total}: {ad.name}')
-            results.append(self.upload_ad(api, ad))
+            result = self.upload_ad(api, ad)
+            result['pushed_values'] = utl.snapshot_values(
+                self.config[a_id], self.snapshot_cols)
+            results.append(result)
         return results
 
     @staticmethod
